@@ -3,9 +3,18 @@ import os
 import re
 from pathlib import Path
 
-import anthropic
+from google import genai
+from google.genai import types
 
-client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
+_PROJECT  = os.environ.get("GOOGLE_CLOUD_PROJECT", "")
+_LOCATION = os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1")
+_MODEL    = "gemini-2.0-flash-001"
+
+_client = genai.Client(
+    vertexai=True,
+    project=_PROJECT,
+    location=_LOCATION,
+)
 
 _SYSTEM_PROMPT = (
     "You are an expert behavioral interview coach who helps students, new grads, and "
@@ -16,19 +25,16 @@ _SYSTEM_PROMPT = (
 
 def call_llm(prompt: str) -> str | None:
     try:
-        response = client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=1500,
-            system=[
-                {
-                    "type": "text",
-                    "text": _SYSTEM_PROMPT,
-                    "cache_control": {"type": "ephemeral"},
-                }
-            ],
-            messages=[{"role": "user", "content": prompt}],
+        response = _client.models.generate_content(
+            model=_MODEL,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                system_instruction=_SYSTEM_PROMPT,
+                max_output_tokens=1500,
+                temperature=0.7,
+            ),
         )
-        return response.content[0].text
+        return response.text
     except Exception as e:
         print(f"LLM call failed: {e}")
         return None

@@ -59,13 +59,13 @@
       </div>
     </div>
     <p class="text-sm text-slate-600 mb-4">
-      Story2STAR calls the Claude API directly from your browser.
-      Get a free key at
-      <a href="https://console.anthropic.com" target="_blank" rel="noopener"
-         class="text-blue-600 hover:underline">console.anthropic.com</a>.
+      Story2STAR calls the Gemini API directly from your browser.
+      Get a free key (no billing needed) at
+      <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener"
+         class="text-blue-600 hover:underline">aistudio.google.com/apikey</a>.
     </p>
-    <label class="block text-sm font-medium text-slate-700 mb-1.5">Anthropic API Key</label>
-    <input id="apiKeyInput" type="password" placeholder="sk-ant-..."
+    <label class="block text-sm font-medium text-slate-700 mb-1.5">Google AI Studio API Key</label>
+    <input id="apiKeyInput" type="password" placeholder="AIza..."
       class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-mono mb-4"
       onkeydown="if(event.key==='Enter')saveKey()" />
     <button onclick="saveKey()"
@@ -100,7 +100,7 @@
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
           d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
       </svg>
-      API key
+      AI Studio key
     </button>
   </div>
 </header>
@@ -124,7 +124,7 @@
           <p class="text-sm text-amber-800">
             No API key set.
             <button onclick="showKeyModal()" class="underline hover:no-underline font-medium">
-              Add your Anthropic key
+              Add your Google AI Studio key
             </button>
             to generate coaching.
           </p>
@@ -389,7 +389,7 @@
 <!-- ── FOOTER ────────────────────────────────────────────────────────── -->
 <footer class="mt-12 py-6 border-t border-slate-200">
   <div class="max-w-6xl mx-auto px-4 text-center text-xs text-slate-400">
-    Story2STAR · Your API key lives only in your browser · Built for interview prep
+    Story2STAR · Powered by Gemini · Your API key lives only in your browser
   </div>
 </footer>
 
@@ -434,7 +434,7 @@ let selectedLength = "Detailed (3-4 min)";
 // INIT
 // ════════════════════════════════════════════════════════════════════
 document.addEventListener("DOMContentLoaded", () => {
-  if (!localStorage.getItem("anthropicKey")) {
+  if (!localStorage.getItem("googleAIKey")) {
     document.getElementById("noBanner").classList.remove("hidden");
   }
 });
@@ -445,7 +445,7 @@ document.addEventListener("DOMContentLoaded", () => {
 function showKeyModal() {
   const modal = document.getElementById("keyModal");
   const input = document.getElementById("apiKeyInput");
-  const existing = localStorage.getItem("anthropicKey");
+  const existing = localStorage.getItem("googleAIKey");
   if (existing) input.value = existing;
   modal.classList.remove("hidden");
   setTimeout(() => input.focus(), 50);
@@ -459,11 +459,11 @@ function closeModalOnBackdrop(e) {
 
 function saveKey() {
   const key = document.getElementById("apiKeyInput").value.trim();
-  if (!key.startsWith("sk-")) {
-    alert("That doesn't look like a valid Anthropic API key (should start with sk-)");
+  if (!key.startsWith("AIza")) {
+    alert("That doesn't look like a valid Google AI Studio key (should start with AIza)");
     return;
   }
-  localStorage.setItem("anthropicKey", key);
+  localStorage.setItem("googleAIKey", key);
   document.getElementById("keyModal").classList.add("hidden");
   document.getElementById("noBanner").classList.add("hidden");
 }
@@ -502,7 +502,7 @@ function setLength(value) {
 // GENERATE
 // ════════════════════════════════════════════════════════════════════
 async function generate() {
-  const apiKey = localStorage.getItem("anthropicKey");
+  const apiKey = localStorage.getItem("googleAIKey");
   if (!apiKey) { showKeyModal(); return; }
 
   const story = document.getElementById("story").value.trim();
@@ -511,7 +511,7 @@ async function generate() {
     return;
   }
   if (story.split(/\s+/).length < 8) {
-    showError("Add a bit more detail — at least 8 words helps Claude understand your story.");
+    showError("Add a bit more detail — at least 8 words helps Gemini understand your story.");
     return;
   }
 
@@ -523,31 +523,31 @@ async function generate() {
   const prompt = buildPrompt(story, skill, role, selectedLength);
 
   try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-        "anthropic-dangerous-direct-browser-access": "true"
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens: 1500,
-        messages: [{ role: "user", content: prompt }]
-      })
-    });
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { maxOutputTokens: 1500, temperature: 0.7 }
+        })
+      }
+    );
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       const msg = err?.error?.message || `API error (${res.status})`;
-      if (res.status === 401) throw new Error('Invalid API key. Click the "API key" button in the header to update it.');
-      if (res.status === 429) throw new Error("Rate limited — wait a moment and try again.");
+      if (res.status === 400 && msg.includes("API_KEY")) throw new Error('Invalid key. Click "AI Studio key" in the header to update it.');
+      if (res.status === 401 || res.status === 403)      throw new Error('Invalid key. Click "AI Studio key" in the header to update it.');
+      if (res.status === 429) throw new Error("Quota exceeded — wait a moment and try again.");
       throw new Error(msg);
     }
 
-    const data   = await res.json();
-    const result = parseJSON(data.content[0].text);
+    const data = await res.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text) throw new Error("Empty response from Gemini. Please try again.");
+    const result = parseJSON(text);
     renderResults(result);
   } catch (e) {
     showError(e.message || "Something went wrong. Please try again.");

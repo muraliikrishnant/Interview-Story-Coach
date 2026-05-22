@@ -1,4 +1,4 @@
-anthropic>=0.40.0
+google-genai>=1.16.0
 crewai>=0.80.0
 fastapi>=0.115.0
 uvicorn[standard]>=0.32.0

@@ -1,0 +1,10 @@
+.git
+.gcloudignore
+__pycache__
+*.pyc
+*.pyo
+.env
+.env.*
+output/
+sample_story2star_output.*
+index.html
