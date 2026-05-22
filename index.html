@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Story2STAR — Interview Coach</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner { animation: spin 0.9s linear infinite; }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(18px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .fade-up {
+      opacity: 0;
+      animation: fadeUp 0.45s ease forwards;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.45; }
+    }
+    .skeleton { animation: pulse 1.6s ease-in-out infinite; }
+
+    .star-chip {
+      width: 2rem; height: 2rem;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 0.8rem;
+      flex-shrink: 0;
+    }
+    textarea { resize: vertical; }
+
+    /* scrollbar polish */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+  </style>
+</head>
+<body class="bg-slate-50 min-h-screen text-slate-800">
+
+<!-- ── API KEY MODAL ─────────────────────────────────────────────────── -->
+<div id="keyModal"
+     class="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 hidden"
+     onclick="closeModalOnBackdrop(event)">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
+    <div class="flex items-center gap-3 mb-5">
+      <div class="w-10 h-10 bg-amber-400 rounded-xl flex items-center justify-center flex-shrink-0">
+        <svg class="w-5 h-5 text-slate-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
+        </svg>
+      </div>
+      <div>
+        <h2 class="text-xl font-bold text-slate-900">Add your API key</h2>
+        <p class="text-xs text-slate-400 mt-0.5">Stored in your browser — never sent to any server</p>
+      </div>
+    </div>
+    <p class="text-sm text-slate-600 mb-4">
+      Story2STAR calls the Claude API directly from your browser.
+      Get a free key at
+      <a href="https://console.anthropic.com" target="_blank" rel="noopener"
+         class="text-blue-600 hover:underline">console.anthropic.com</a>.
+    </p>
+    <label class="block text-sm font-medium text-slate-700 mb-1.5">Anthropic API Key</label>
+    <input id="apiKeyInput" type="password" placeholder="sk-ant-..."
+      class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-mono mb-4"
+      onkeydown="if(event.key==='Enter')saveKey()" />
+    <button onclick="saveKey()"
+      class="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-semibold text-sm transition-colors">
+      Save &amp; continue
+    </button>
+  </div>
+</div>
+
+<!-- ── HEADER ────────────────────────────────────────────────────────── -->
+<header class="bg-slate-900 text-white sticky top-0 z-40 shadow-lg">
+  <div class="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-4">
+    <div class="flex items-center gap-3 min-w-0">
+      <div class="w-9 h-9 bg-amber-400 rounded-xl flex items-center justify-center flex-shrink-0">
+        <svg class="w-5 h-5 text-slate-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+            d="M13 10V3L4 14h7v7l9-11h-7z"/>
+        </svg>
+      </div>
+      <div class="min-w-0">
+        <h1 class="text-xl font-black tracking-tight leading-none">
+          Story2<span class="text-amber-400">STAR</span>
+        </h1>
+        <p class="text-slate-400 text-xs mt-0.5 truncate hidden sm:block">
+          Turn rough experiences into polished interview answers
+        </p>
+      </div>
+    </div>
+    <button onclick="showKeyModal()"
+      class="flex items-center gap-1.5 text-slate-400 hover:text-white transition-colors text-xs px-3 py-2 rounded-lg hover:bg-slate-800 flex-shrink-0">
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
+      </svg>
+      API key
+    </button>
+  </div>
+</header>
+
+<!-- ── MAIN ──────────────────────────────────────────────────────────── -->
+<main class="max-w-6xl mx-auto px-4 sm:px-6 py-8">
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+
+    <!-- ── LEFT: INPUT ──────────────────────────────────────────────── -->
+    <div class="space-y-4">
+
+      <!-- No-key banner -->
+      <div id="noBanner"
+           class="bg-amber-50 border border-amber-200 rounded-xl p-4 hidden">
+        <div class="flex items-start gap-3">
+          <svg class="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd"
+              d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+              clip-rule="evenodd"/>
+          </svg>
+          <p class="text-sm text-amber-800">
+            No API key set.
+            <button onclick="showKeyModal()" class="underline hover:no-underline font-medium">
+              Add your Anthropic key
+            </button>
+            to generate coaching.
+          </p>
+        </div>
+      </div>
+
+      <!-- Form card -->
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <h2 class="font-bold text-slate-900 text-lg mb-5">Your experience</h2>
+
+        <!-- Sample chips -->
+        <div class="mb-5">
+          <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+            Try a sample
+          </p>
+          <div class="flex flex-wrap gap-2">
+            <button onclick="loadSample(0)"
+              class="text-xs px-3 py-1.5 bg-slate-100 hover:bg-amber-100 hover:text-amber-900 text-slate-700 rounded-full transition-colors border border-transparent hover:border-amber-200">
+              🏆 Leadership
+            </button>
+            <button onclick="loadSample(1)"
+              class="text-xs px-3 py-1.5 bg-slate-100 hover:bg-amber-100 hover:text-amber-900 text-slate-700 rounded-full transition-colors border border-transparent hover:border-amber-200">
+              🐛 Problem Solving
+            </button>
+            <button onclick="loadSample(2)"
+              class="text-xs px-3 py-1.5 bg-slate-100 hover:bg-amber-100 hover:text-amber-900 text-slate-700 rounded-full transition-colors border border-transparent hover:border-amber-200">
+              🔄 Adaptability
+            </button>
+          </div>
+        </div>
+
+        <!-- Story textarea -->
+        <div class="mb-4">
+          <label for="story" class="block text-sm font-medium text-slate-700 mb-1.5">
+            Paste your rough experience
+            <span class="text-slate-400 font-normal"> — 2-3 sentences is enough</span>
+          </label>
+          <textarea id="story" rows="6"
+            placeholder="Describe what happened. Don't worry about structure — just write what you did and what the outcome was..."
+            class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-slate-50 leading-relaxed"
+            oninput="updateWordCount()"></textarea>
+          <p id="wordCount" class="text-xs text-slate-400 mt-1">0 words</p>
+        </div>
+
+        <!-- Skill + Role -->
+        <div class="grid grid-cols-2 gap-3 mb-4">
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">
+              Skill focus
+            </label>
+            <select id="skillFocus"
+              class="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white">
+              <option value="Leadership">Leadership</option>
+              <option value="Teamwork &amp; Collaboration">Teamwork &amp; Collaboration</option>
+              <option value="Problem Solving">Problem Solving</option>
+              <option value="Conflict Resolution">Conflict Resolution</option>
+              <option value="Ownership &amp; Initiative">Ownership &amp; Initiative</option>
+              <option value="Communication">Communication</option>
+              <option value="Adaptability">Adaptability</option>
+              <option value="Technical Skills">Technical Skills</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">
+              Target role
+            </label>
+            <select id="targetRole"
+              class="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white">
+              <option value="Software Engineer Intern">SWE Intern</option>
+              <option value="Product / Business Analyst">Product / BA</option>
+              <option value="Marketing / Comms">Marketing / Comms</option>
+              <option value="General / Any Role">General / Any Role</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Length toggle -->
+        <div class="mb-6">
+          <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5">
+            Answer length
+          </label>
+          <div class="flex rounded-xl overflow-hidden border border-slate-200 text-sm font-medium">
+            <button id="btnDetailed" onclick="setLength('Detailed (3-4 min)')"
+              class="flex-1 py-2.5 transition-colors bg-slate-900 text-white">
+              Detailed (3–4 min)
+            </button>
+            <button id="btnConcise" onclick="setLength('Concise (90 sec)')"
+              class="flex-1 py-2.5 transition-colors bg-white text-slate-600 hover:bg-slate-50">
+              Concise (90 sec)
+            </button>
+          </div>
+        </div>
+
+        <!-- Generate button -->
+        <button id="generateBtn" onclick="generate()"
+          class="w-full py-3.5 bg-amber-400 hover:bg-amber-300 active:bg-amber-500 text-slate-900 font-bold rounded-xl transition-colors flex items-center justify-center gap-2 text-base shadow-sm">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+              d="M13 10V3L4 14h7v7l9-11h-7z"/>
+          </svg>
+          Generate STAR Answer
+        </button>
+
+        <!-- Error -->
+        <div id="errorMsg"
+             class="hidden mt-4 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+        </div>
+      </div>
+    </div>
+
+    <!-- ── RIGHT: RESULTS ───────────────────────────────────────────── -->
+    <div id="resultsPanel" class="space-y-4">
+
+      <!-- Empty state -->
+      <div id="emptyState"
+           class="flex flex-col items-center justify-center min-h-[420px] text-center p-8 bg-white rounded-2xl border border-slate-200 border-dashed">
+        <div class="w-14 h-14 bg-slate-100 rounded-full flex items-center justify-center mb-4">
+          <svg class="w-7 h-7 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+          </svg>
+        </div>
+        <p class="font-semibold text-slate-500 mb-1">Your STAR coaching will appear here</p>
+        <p class="text-sm text-slate-400">Paste an experience and click Generate</p>
+      </div>
+
+      <!-- Loading skeleton -->
+      <div id="loadingState" class="hidden space-y-4">
+        <div class="bg-white rounded-2xl border border-slate-200 p-6 skeleton">
+          <div class="h-4 bg-slate-200 rounded w-1/3 mb-4"></div>
+          <div class="space-y-2.5">
+            <div class="h-3.5 bg-slate-100 rounded w-full"></div>
+            <div class="h-3.5 bg-slate-100 rounded w-5/6"></div>
+            <div class="h-3.5 bg-slate-100 rounded w-4/6"></div>
+          </div>
+        </div>
+        <div class="bg-white rounded-2xl border border-slate-200 p-6 skeleton" style="animation-delay:.2s">
+          <div class="h-4 bg-slate-200 rounded w-1/4 mb-4"></div>
+          <div class="space-y-2.5">
+            <div class="h-3.5 bg-slate-100 rounded w-full"></div>
+            <div class="h-3.5 bg-slate-100 rounded w-3/4"></div>
+          </div>
+        </div>
+        <div class="flex items-center justify-center gap-2 text-sm text-slate-500 py-2">
+          <svg class="w-4 h-4 spinner text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+          </svg>
+          Crafting your STAR answer with Claude…
+        </div>
+      </div>
+
+      <!-- Results -->
+      <div id="resultsContent" class="hidden space-y-4">
+
+        <!-- Confidence badge -->
+        <div id="confidenceBadge" class="flex items-center gap-4 px-5 py-4 rounded-2xl border">
+          <div id="confidenceScore"
+               class="text-4xl font-black leading-none w-16 text-center flex-shrink-0"></div>
+          <div class="min-w-0">
+            <div class="text-sm font-bold mb-0.5">Confidence Score</div>
+            <div id="confidenceReason" class="text-xs leading-relaxed"></div>
+          </div>
+        </div>
+
+        <!-- STAR Answer -->
+        <div id="cardStar" class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="flex items-center justify-between px-6 py-3.5 bg-slate-900">
+            <h3 class="font-bold text-white text-sm">STAR Answer</h3>
+            <button onclick="copyCard('starBody')"
+              class="copy-btn flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors px-2 py-1 rounded hover:bg-slate-700">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+              </svg>
+              Copy
+            </button>
+          </div>
+          <div id="starBody" class="p-6 space-y-4"></div>
+        </div>
+
+        <!-- Quick Bullets -->
+        <div id="cardBullets" class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="flex items-center justify-between px-6 py-3.5 bg-blue-900">
+            <h3 class="font-bold text-white text-sm">Quick Bullets</h3>
+            <button onclick="copyCard('bulletsBody')"
+              class="copy-btn flex items-center gap-1.5 text-xs text-blue-300 hover:text-white transition-colors px-2 py-1 rounded hover:bg-blue-800">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+              </svg>
+              Copy
+            </button>
+          </div>
+          <div id="bulletsBody" class="p-6">
+            <ul id="bulletsList" class="space-y-2"></ul>
+          </div>
+        </div>
+
+        <!-- Shorter Version -->
+        <div id="cardShort" class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="flex items-center justify-between px-6 py-3.5 bg-blue-800">
+            <h3 class="font-bold text-white text-sm">
+              Shorter Version
+              <span class="font-normal text-blue-300 ml-1">~90 sec</span>
+            </h3>
+            <button onclick="copyCard('shortBody')"
+              class="copy-btn flex items-center gap-1.5 text-xs text-blue-300 hover:text-white transition-colors px-2 py-1 rounded hover:bg-blue-700">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+              </svg>
+              Copy
+            </button>
+          </div>
+          <div id="shortBody" class="p-6">
+            <p id="shortText" class="text-sm text-slate-700 leading-relaxed"></p>
+          </div>
+        </div>
+
+        <!-- Follow-up Questions -->
+        <div id="cardQuestions" class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="flex items-center justify-between px-6 py-3.5 bg-amber-600">
+            <h3 class="font-bold text-white text-sm">Prep for Follow-ups</h3>
+            <button onclick="copyCard('questionsBody')"
+              class="copy-btn flex items-center gap-1.5 text-xs text-amber-100 hover:text-white transition-colors px-2 py-1 rounded hover:bg-amber-500">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+              </svg>
+              Copy
+            </button>
+          </div>
+          <div id="questionsBody" class="p-6">
+            <ol id="questionsList" class="space-y-2"></ol>
+          </div>
+        </div>
+
+        <!-- Make It Stronger -->
+        <div id="cardTips" class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="flex items-center justify-between px-6 py-3.5 bg-emerald-700">
+            <h3 class="font-bold text-white text-sm">Make It Stronger</h3>
+            <button onclick="copyCard('tipsBody')"
+              class="copy-btn flex items-center gap-1.5 text-xs text-emerald-100 hover:text-white transition-colors px-2 py-1 rounded hover:bg-emerald-600">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+              </svg>
+              Copy
+            </button>
+          </div>
+          <div id="tipsBody" class="p-6">
+            <ul id="tipsList" class="space-y-2"></ul>
+          </div>
+        </div>
+
+      </div><!-- /resultsContent -->
+    </div><!-- /resultsPanel -->
+  </div>
+</main>
+
+<!-- ── FOOTER ────────────────────────────────────────────────────────── -->
+<footer class="mt-12 py-6 border-t border-slate-200">
+  <div class="max-w-6xl mx-auto px-4 text-center text-xs text-slate-400">
+    Story2STAR · Your API key lives only in your browser · Built for interview prep
+  </div>
+</footer>
+
+<script>
+// ════════════════════════════════════════════════════════════════════
+// CONSTANTS
+// ════════════════════════════════════════════════════════════════════
+const SAMPLES = [
+  {
+    story: "I led a class group project where two teammates disagreed about the database design. I organized a quick meeting, compared the options against our deadline, split the work, and helped us finish the project on time.",
+    skill: "Leadership",
+    role: "Software Engineer Intern",
+    length: "Detailed (3-4 min)"
+  },
+  {
+    story: "Our app was throwing 500 errors in production and users couldn't log in. I was the first one on the Slack alert. I traced the logs, found it was a bad config deploy, rolled it back, and had the system back up in 20 minutes. Then I wrote a post-mortem so it wouldn't happen again.",
+    skill: "Problem Solving",
+    role: "Software Engineer Intern",
+    length: "Detailed (3-4 min)"
+  },
+  {
+    story: "I joined a new research lab mid-semester where everyone used a workflow I had never seen. I spent the first week reading documentation, asked a senior student to walk me through the most confusing parts, and within two weeks I was contributing independently.",
+    skill: "Adaptability",
+    role: "General / Any Role",
+    length: "Concise (90 sec)"
+  }
+];
+
+const STAR_LABELS = [
+  { key: "situation", label: "S", bg: "bg-slate-800 text-white" },
+  { key: "task",      label: "T", bg: "bg-blue-700 text-white" },
+  { key: "action",    label: "A", bg: "bg-amber-400 text-slate-900" },
+  { key: "result",    label: "R", bg: "bg-emerald-600 text-white" }
+];
+
+// ════════════════════════════════════════════════════════════════════
+// STATE
+// ════════════════════════════════════════════════════════════════════
+let selectedLength = "Detailed (3-4 min)";
+
+// ════════════════════════════════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════════════════════════════════
+document.addEventListener("DOMContentLoaded", () => {
+  if (!localStorage.getItem("anthropicKey")) {
+    document.getElementById("noBanner").classList.remove("hidden");
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════
+// API KEY MODAL
+// ════════════════════════════════════════════════════════════════════
+function showKeyModal() {
+  const modal = document.getElementById("keyModal");
+  const input = document.getElementById("apiKeyInput");
+  const existing = localStorage.getItem("anthropicKey");
+  if (existing) input.value = existing;
+  modal.classList.remove("hidden");
+  setTimeout(() => input.focus(), 50);
+}
+
+function closeModalOnBackdrop(e) {
+  if (e.target === e.currentTarget) {
+    e.currentTarget.classList.add("hidden");
+  }
+}
+
+function saveKey() {
+  const key = document.getElementById("apiKeyInput").value.trim();
+  if (!key.startsWith("sk-")) {
+    alert("That doesn't look like a valid Anthropic API key (should start with sk-)");
+    return;
+  }
+  localStorage.setItem("anthropicKey", key);
+  document.getElementById("keyModal").classList.add("hidden");
+  document.getElementById("noBanner").classList.add("hidden");
+}
+
+// ════════════════════════════════════════════════════════════════════
+// SAMPLES & FORM HELPERS
+// ════════════════════════════════════════════════════════════════════
+function loadSample(i) {
+  const s = SAMPLES[i];
+  document.getElementById("story").value = s.story;
+  document.getElementById("skillFocus").value = s.skill;
+  document.getElementById("targetRole").value = s.role;
+  setLength(s.length);
+  updateWordCount();
+}
+
+function updateWordCount() {
+  const val = document.getElementById("story").value.trim();
+  const count = val ? val.split(/\s+/).length : 0;
+  document.getElementById("wordCount").textContent =
+    `${count} word${count !== 1 ? "s" : ""}`;
+}
+
+function setLength(value) {
+  selectedLength = value;
+  const isDetailed = value === "Detailed (3-4 min)";
+  const btnD = document.getElementById("btnDetailed");
+  const btnC = document.getElementById("btnConcise");
+  const active   = "flex-1 py-2.5 transition-colors bg-slate-900 text-white";
+  const inactive = "flex-1 py-2.5 transition-colors bg-white text-slate-600 hover:bg-slate-50";
+  btnD.className = isDetailed ? active : inactive;
+  btnC.className = isDetailed ? inactive : active;
+}
+
+// ════════════════════════════════════════════════════════════════════
+// GENERATE
+// ════════════════════════════════════════════════════════════════════
+async function generate() {
+  const apiKey = localStorage.getItem("anthropicKey");
+  if (!apiKey) { showKeyModal(); return; }
+
+  const story = document.getElementById("story").value.trim();
+  if (!story) {
+    showError("Paste your experience first — even 2–3 sentences is enough.");
+    return;
+  }
+  if (story.split(/\s+/).length < 8) {
+    showError("Add a bit more detail — at least 8 words helps Claude understand your story.");
+    return;
+  }
+
+  clearError();
+  setLoading(true);
+
+  const skill  = document.getElementById("skillFocus").value;
+  const role   = document.getElementById("targetRole").value;
+  const prompt = buildPrompt(story, skill, role, selectedLength);
+
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+        "anthropic-dangerous-direct-browser-access": "true"
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: 1500,
+        messages: [{ role: "user", content: prompt }]
+      })
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      const msg = err?.error?.message || `API error (${res.status})`;
+      if (res.status === 401) throw new Error('Invalid API key. Click the "API key" button in the header to update it.');
+      if (res.status === 429) throw new Error("Rate limited — wait a moment and try again.");
+      throw new Error(msg);
+    }
+
+    const data   = await res.json();
+    const result = parseJSON(data.content[0].text);
+    renderResults(result);
+  } catch (e) {
+    showError(e.message || "Something went wrong. Please try again.");
+    setLoading(false);
+    showEmptyState();
+  }
+}
+
+function buildPrompt(story, skillFocus, targetRole, answerLength) {
+  return `You are an expert interview coach. A user has provided a rough work or school experience.
+Transform it into a polished behavioral interview answer using the STAR framework.
+
+User's raw story: ${story}
+Target skill/competency: ${skillFocus}
+Target role: ${targetRole || "General / Any Role"}
+Desired length: ${answerLength}
+
+Rules:
+- Keep the user's facts intact. Do not invent company names, grades, numbers, or outcomes.
+- If a metric is missing, suggest where to add one instead of fabricating it.
+- Make the Action section the strongest and most personal section.
+- Write for students, new grads, and international students preparing for interviews.
+
+Return ONLY a JSON object with this exact structure:
+{
+  "star": {
+    "situation": "...",
+    "task": "...",
+    "action": "...",
+    "result": "..."
+  },
+  "shortVersion": "...",
+  "bullets": ["...", "...", "..."],
+  "followUpQuestions": ["...", "...", "..."],
+  "improvementTips": ["...", "...", "..."],
+  "confidenceScore": 7,
+  "confidenceReason": "..."
+}`;
+}
+
+function parseJSON(text) {
+  const clean = text.replace(/```json|```/g, "").trim();
+  try { return JSON.parse(clean); } catch {}
+  const m = clean.match(/\{[\s\S]*\}/);
+  if (m) { try { return JSON.parse(m[0]); } catch {} }
+  throw new Error("Could not parse the AI response. Please try again.");
+}
+
+// ════════════════════════════════════════════════════════════════════
+// RENDER
+// ════════════════════════════════════════════════════════════════════
+function renderResults(result) {
+  setLoading(false);
+
+  // Confidence badge
+  const score = Math.min(10, Math.max(1, parseInt(result.confidenceScore) || 6));
+  const badge = document.getElementById("confidenceBadge");
+  document.getElementById("confidenceScore").textContent = `${score}/10`;
+  document.getElementById("confidenceReason").textContent = result.confidenceReason || "";
+  if (score >= 8) {
+    badge.className = "flex items-center gap-4 px-5 py-4 rounded-2xl border bg-emerald-50 border-emerald-200 text-emerald-900";
+  } else if (score >= 5) {
+    badge.className = "flex items-center gap-4 px-5 py-4 rounded-2xl border bg-amber-50 border-amber-200 text-amber-900";
+  } else {
+    badge.className = "flex items-center gap-4 px-5 py-4 rounded-2xl border bg-red-50 border-red-200 text-red-900";
+  }
+
+  // STAR sections
+  const star = result.star || {};
+  const starBody = document.getElementById("starBody");
+  starBody.innerHTML = "";
+  STAR_LABELS.forEach(({ key, label, bg }) => {
+    const row = document.createElement("div");
+    row.className = "flex gap-3";
+    row.innerHTML = `
+      <div class="star-chip ${bg} mt-0.5">${label}</div>
+      <p class="text-sm text-slate-700 leading-relaxed flex-1">${esc(star[key] || "")}</p>`;
+    starBody.appendChild(row);
+  });
+
+  // Bullets
+  const bullets = arr(result.bullets);
+  document.getElementById("bulletsList").innerHTML = bullets.map(b => `
+    <li class="flex items-start gap-2 text-sm text-slate-700">
+      <svg class="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+        <path fill-rule="evenodd"
+          d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+          clip-rule="evenodd"/>
+      </svg>
+      <span>${esc(b)}</span>
+    </li>`).join("");
+
+  // Short version
+  document.getElementById("shortText").textContent = result.shortVersion || "";
+
+  // Follow-up questions
+  const qs = arr(result.followUpQuestions);
+  document.getElementById("questionsList").innerHTML = qs.map((q, i) => `
+    <li class="flex items-start gap-2 text-sm text-slate-700">
+      <span class="font-bold text-amber-600 w-5 flex-shrink-0">${i + 1}.</span>
+      <span>${esc(q)}</span>
+    </li>`).join("");
+
+  // Tips
+  const tips = arr(result.improvementTips);
+  document.getElementById("tipsList").innerHTML = tips.map(t => `
+    <li class="flex items-start gap-2 text-sm text-slate-700">
+      <svg class="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.362.362a1.937 1.937 0 01-.702 1.302c-.3.256-.638.399-.998.399H9.725a1.937 1.937 0 01-.998-.399 1.937 1.937 0 01-.702-1.302l-.362-.362z"/>
+      </svg>
+      <span>${esc(t)}</span>
+    </li>`).join("");
+
+  // Show results with staggered fade-in
+  document.getElementById("emptyState").classList.add("hidden");
+  document.getElementById("loadingState").classList.add("hidden");
+  const content = document.getElementById("resultsContent");
+  content.classList.remove("hidden");
+
+  // Replay animations on each result card
+  const cards = ["cardStar","cardBullets","cardShort","cardQuestions","cardTips"];
+  cards.forEach((id, i) => {
+    const el = document.getElementById(id);
+    el.style.animation = "none";
+    el.style.opacity = "0";
+    el.offsetHeight; // reflow
+    el.style.animation = `fadeUp 0.4s ease ${i * 0.07}s forwards`;
+  });
+  document.getElementById("confidenceBadge").style.animation = "fadeUp 0.35s ease forwards";
+
+  if (window.innerWidth < 1024) {
+    content.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// LOADING STATE
+// ════════════════════════════════════════════════════════════════════
+function setLoading(on) {
+  const btn = document.getElementById("generateBtn");
+  if (on) {
+    btn.disabled = true;
+    btn.innerHTML = `
+      <svg class="w-5 h-5 spinner" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+      </svg>
+      Generating…`;
+    btn.className = "w-full py-3.5 bg-amber-200 text-slate-500 font-bold rounded-xl flex items-center justify-center gap-2 text-base cursor-not-allowed";
+    document.getElementById("emptyState").classList.add("hidden");
+    document.getElementById("resultsContent").classList.add("hidden");
+    document.getElementById("loadingState").classList.remove("hidden");
+  } else {
+    btn.disabled = false;
+    btn.innerHTML = `
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+      </svg>
+      Generate STAR Answer`;
+    btn.className = "w-full py-3.5 bg-amber-400 hover:bg-amber-300 active:bg-amber-500 text-slate-900 font-bold rounded-xl transition-colors flex items-center justify-center gap-2 text-base shadow-sm";
+    document.getElementById("loadingState").classList.add("hidden");
+  }
+}
+
+function showEmptyState() {
+  document.getElementById("emptyState").classList.remove("hidden");
+}
+
+// ════════════════════════════════════════════════════════════════════
+// COPY
+// ════════════════════════════════════════════════════════════════════
+async function copyCard(bodyId) {
+  const body = document.getElementById(bodyId);
+  const text = body.innerText || body.textContent;
+  const card = body.closest(".overflow-hidden");
+  const btn  = card && card.querySelector(".copy-btn");
+
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    const ta = document.createElement("textarea");
+    ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.select();
+    document.execCommand("copy");
+    document.body.removeChild(ta);
+  }
+
+  if (btn) {
+    const orig = btn.innerHTML;
+    btn.innerHTML = `<svg class="w-3.5 h-3.5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg> Copied!`;
+    setTimeout(() => { btn.innerHTML = orig; }, 2000);
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// HELPERS
+// ════════════════════════════════════════════════════════════════════
+function showError(msg)  { const el = document.getElementById("errorMsg"); el.textContent = msg; el.classList.remove("hidden"); }
+function clearError()    { document.getElementById("errorMsg").classList.add("hidden"); }
+function arr(v)          { return Array.isArray(v) ? v : []; }
+function esc(str) {
+  const d = document.createElement("div");
+  d.appendChild(document.createTextNode(String(str)));
+  return d.innerHTML;
+}
+</script>
+</body>
+</html>

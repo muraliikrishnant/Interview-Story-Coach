@@ -100,9 +100,10 @@ def _fallback_story2star(story: str, skill_focus: str, target_role: str, answer_
     if any(char.isdigit() for char in story):
         confidence += 1
 
+    first_sentence = story.split(".")[0].strip()
     situation = (
-        f"In a recent experience related to {skill_focus.lower()}, I was working in a context where "
-        f"the outcome mattered for my team and connected to skills needed for {role_context}."
+        f"{first_sentence}. This required {skill_focus.lower()} to move the work forward, "
+        f"and the outcome mattered for skills needed in {role_context}."
     )
     task_text = (
         "My responsibility was to turn a rough or blocked situation into a clear plan, align the "
